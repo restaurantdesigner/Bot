@@ -98,7 +98,6 @@ Your platforms serve nonprofits and institutions across North America.
 
 
 
-const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
