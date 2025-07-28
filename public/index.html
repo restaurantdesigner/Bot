@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ISHAREAI Chat Widget</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    body {
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      position: relative;
+      min-height: 100vh;
+    }
+
+    /* Виньетка — затемнение по углам */
+    .vignette::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0) 50%, rgba(0,0,0,0.1) 100%);
+      z-index: 1;
+    }
+
+    #logo {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 120px;
+      z-index: 20;
+      filter: brightness(0); /* делает чёрным */
+    }
+
+    #messages a {
+      color: #ec4899;
+      text-decoration: underline;
+      font-weight: 500;
+    }
+
+    #messages a:hover {
+      text-decoration: none;
+      color: #db2777;
+    }
+
+@keyframes pulseLogo {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.85; }
+}
+
+
+.animate-pulse-logo {
+  animation: pulseLogo 2s ease-in-out infinite;
+  transform: translateY(-10px); /* чуть выше */
+}
+
+body {
+  background: radial-gradient(circle at center, #ffffff 0%, #f0f0f0 100%);
+  animation: subtleMove 30s infinite alternate;
+}
+
+@keyframes subtleMove {
+  0% { background-position: 50% 50%; }
+  100% { background-position: 55% 45%; }
+}
+
+
+@keyframes fadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-fade-out {
+  animation: fadeOut 4s ease-out forwards;
+}
+
+
+
+
+
+  </style>
+</head>
+<body class="vignette">
+
+  <!-- Логотип -->
+ <div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+  <img src="img/lg.png" alt="Logo" class="w-40 h-auto filter brightness-0 animate-pulse-logo shadow-logo" />
+</div>
+
+
+
+ <!-- Chat Widget -->
+<div class="fixed bottom-4 right-4 z-50">
+  <button id="openChat" class="w-16 h-16 rounded-full shadow-lg bg-white border border-gray-300 flex items-center justify-center hover:scale-125 transition">
+    <img src="img/billpetruck1.jpg" alt="AI Avatar" class="w-full h-full object-cover rounded-full" />
+  </button>
+
+  <!-- Подсказка над кнопкой -->
+<p class="absolute right-4 bottom-[90px] text-center text-gray-500 animate-fade-out text-sm z-40 pointer-events-none">
+  Ask me anything...
+</p>
+
+
+  <div id="chatBox" class="hidden mt-2 w-80 max-h-[70vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50">
+    
+    <!-- Header (нейтральный стиль) -->
+    <div class="flex items-center gap-2 p-4 bg-white text-gray-800 border-b shadow-sm">
+      <img src="img/billpetruck1.jpg" alt="Avatar" class="w-10 h-10 rounded-full" />
+      <div>
+        <div class="font-semibold">ISHAREAI</div>
+<div class="text-sm opacity-70">Hi, I'm Bill — your Smart Charity Advisor</div>
+
+      </div>
+      <button id="closeChat" class="ml-auto text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages" class="flex-1 p-4 overflow-y-auto space-y-2 text-sm bg-gray-50">
+      <div class="bg-gray-200 text-black px-3 py-2 rounded-xl max-w-[80%]">Hello! How can I help you?</div>
+    </div>
+
+    <!-- Input -->
+    <form id="chatForm" class="flex items-center p-2 border-t bg-white">
+      <textarea id="chatInput" rows="1" placeholder="Type your message..." class="resize-none flex-1 text-sm px-3 py-2 border border-gray-300 rounded-full focus:outline-none"></textarea>
+      <button type="submit" class="ml-2 text-gray-600 font-bold text-xl">➤</button>
+    </form>
+  </div>
+</div>
+
+
+  <script>
+    const openBtn = document.getElementById('openChat');
+    const closeBtn = document.getElementById('closeChat');
+    const chatBox = document.getElementById('chatBox');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const messages = document.getElementById('messages');
+
+    openBtn.addEventListener('click', () => {
+      chatBox.classList.toggle('hidden');
+      loadHistory();
+    });
+
+    closeBtn.addEventListener('click', () => chatBox.classList.add('hidden'));
+
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const userMsg = chatInput.value.trim();
+      if (!userMsg) return;
+
+      appendMessage(userMsg, 'user');
+      chatInput.value = '';
+      scrollToBottom();
+
+      appendTyping();
+
+      const aiReply = await getAIResponse(userMsg);
+
+      removeTyping();
+      appendMessage(aiReply, 'ai');
+      scrollToBottom();
+      saveHistory();
+    });
+
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.dispatchEvent(new Event('submit'));
+      }
+    });
+
+    function appendMessage(text, sender) {
+      const className = sender === 'user'
+        ? 'bg-gray-200 self-end text-right ml-auto'
+        : 'bg-pink-100 text-black';
+
+      let formatted;
+
+      if (sender === 'ai') {
+        formatted = marked.parse(text, { sanitize: true });
+        formatted = formatted.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+      } else {
+        formatted = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      const bubble = `<div class="${className} px-3 py-2 rounded-xl max-w-[80%]">${formatted}</div>`;
+      messages.insertAdjacentHTML('beforeend', bubble);
+    }
+
+    function appendTyping() {
+      const bubble = `<div id="typing" class="italic text-gray-500 px-3 py-2">AI is typing...</div>`;
+      messages.insertAdjacentHTML('beforeend', bubble);
+    }
+
+    function removeTyping() {
+      const typing = document.getElementById('typing');
+      if (typing) typing.remove();
+    }
+
+    function scrollToBottom() {
+      setTimeout(() => {
+        messages.scrollTop = messages.scrollHeight;
+      }, 100);
+    }
+
+    function saveHistory() {
+      localStorage.setItem('chatHistory', messages.innerHTML);
+    }
+
+    function loadHistory() {
+      const history = localStorage.getItem('chatHistory');
+      if (history) messages.innerHTML = history;
+      scrollToBottom();
+    }
+
+    async function getAIResponse(message) {
+  try {
+    const response = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
+    });
+    const data = await response.json();
+    return data.reply || "No response from AI.";
+  } catch (err) {
+    console.error(err);
+    return "Error talking to AI.";
+  }
+}
+
+
+
+
+  </script>
+</body>
+</html>
